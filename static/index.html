@@ -92,7 +92,7 @@
             margin-bottom: 6px;
         }
 
-        input[type="text"], textarea {
+        input[type="text"], textarea, select {
             width: 100%;
             border: 1px solid var(--border);
             border-radius: 10px;
@@ -104,7 +104,8 @@
         }
 
         input[type="text"]:focus,
-        textarea:focus {
+        textarea:focus,
+        select:focus {
             border-color: var(--primary);
             outline: none;
             box-shadow: 0 0 0 3px var(--primary-soft);
@@ -421,6 +422,18 @@
                 <p class="help-text">カンマ区切りで入力すると、専門用語や固有名詞の認識精度が向上します。</p>
             </div>
 
+            <div>
+                <label for="modelSize">音声認識モデルサイズ</label>
+                <select id="modelSize">
+                    <option value="tiny">Tiny（最速・低精度）</option>
+                    <option value="base" selected>Base（推奨・バランス型）</option>
+                    <option value="small">Small（高精度・やや遅い）</option>
+                    <option value="medium">Medium（より高精度・遅い）</option>
+                    <option value="large">Large（最高精度・最も遅い）</option>
+                </select>
+                <p class="help-text">精度と処理速度のトレードオフがあります。通常は「Base」で十分です。</p>
+            </div>
+
             <div class="button-group">
                 <button id="processBtn" class="btn-primary" disabled>文字起こしを開始</button>
             </div>
@@ -478,6 +491,7 @@
         const resetBtn = document.getElementById('resetBtn');
         const youtubeUrlInput = document.getElementById('youtubeUrl');
         const youtubeDownloadBtn = document.getElementById('youtubeDownloadBtn');
+        const modelSizeSelect = document.getElementById('modelSize');
 
         let selectedFile = null;
         let processedData = null;
@@ -615,6 +629,7 @@
                 updateStep('step2', 'active');
                 const transcribeFormData = new FormData();
                 transcribeFormData.append('file_id', uploadData.file_id);
+                transcribeFormData.append('model_size', modelSizeSelect.value);
                 
                 const transcribeResponse = await fetch('/api/transcribe', {
                     method: 'POST',
@@ -725,6 +740,7 @@
             fileInput.value = '';
             keywordsInput.value = '';
             youtubeUrlInput.value = '';
+            modelSizeSelect.value = 'base';
             selectedFileDiv.style.display = 'none';
             processBtn.disabled = true;
             youtubeDownloadBtn.disabled = true;

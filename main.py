@@ -23,7 +23,10 @@ load_dotenv()
 # Whisperモデルの初期化（最初の呼び出し時に自動でダウンロードされます）
 # モデルサイズ: tiny, base, small, medium, large
 # 推奨: base (精度と速度のバランスが良い) または small (より高精度)
-whisper_model = None  # 遅延初期化
+whisper_models = {}  # モデルサイズごとにキャッシュ
+
+# 利用可能なWhisperモデルサイズ
+AVAILABLE_MODEL_SIZES = ["tiny", "base", "small", "medium", "large"]
 
 # Gemini APIの設定
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -191,15 +194,26 @@ async def health_check():
 
 
 @app.post("/api/transcribe")
-async def transcribe_audio(file_id: str = Form(...)):
+async def transcribe_audio(
+    file_id: str = Form(...),
+    model_size: str = Form("base")
+):
     """
     音声ファイルを文字起こし（ローカルWhisperモデル使用）
     
     Parameters:
     - file_id: アップロード時に返されたファイルID
+    - model_size: Whisperモデルサイズ (tiny, base, small, medium, large)
     """
     try:
-        global whisper_model
+        global whisper_models
+        
+        # モデルサイズのバリデーション
+        if model_size not in AVAILABLE_MODEL_SIZES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"無効なモデルサイズです。利用可能: {', '.join(AVAILABLE_MODEL_SIZES)}"
+            )
         
         # ファイルを探す
         file_path = None
@@ -212,18 +226,16 @@ async def transcribe_audio(file_id: str = Form(...)):
         if not file_path:
             raise HTTPException(status_code=404, detail="ファイルが見つかりません")
         
-        logger.info(f"音声認識を開始: {file_path}")
+        logger.info(f"音声認識を開始: {file_path}, モデル: {model_size}")
         
-        # Whisperモデルの初期化（初回のみ）
-        if whisper_model is None:
-            logger.info("Whisperモデルを読み込み中... (初回は数分かかる場合があります)")
-            # baseモデル: 精度と速度のバランスが良い
-            # 他のオプション: tiny (最速), small (高精度), medium, large (最高精度・最遅)
-            whisper_model = whisper.load_model("base")
-            logger.info("Whisperモデルの読み込み完了")
+        # Whisperモデルの初期化（該当サイズが初回の場合のみ）
+        if model_size not in whisper_models:
+            logger.info(f"Whisperモデル({model_size})を読み込み中... (初回は数分かかる場合があります)")
+            whisper_models[model_size] = whisper.load_model(model_size)
+            logger.info(f"Whisperモデル({model_size})の読み込み完了")
         
         # ローカルWhisperで音声認識
-        result = whisper_model.transcribe(
+        result = whisper_models[model_size].transcribe(
             str(file_path),
             language="ja",  # 日本語指定
             verbose=False
